@@ -4,22 +4,40 @@ title: "Module 3: Topic Modeling"
 
 ## Theory (20 Minutes)
 
-### LDA Architecture
-Latent Dirichlet Allocation (LDA) is a generative probabilistic model that assumes documents are mixtures of topics [7].
+### Latent Dirichlet Allocation (LDA)
 
-* **Beta Matrix ($\beta$):** Probability of a word occurring in a topic.
-* **Gamma Matrix ($\gamma$):** Probability of a topic occurring in a document [8].
+LDA is an unsupervised machine learning algorithm that discovers hidden "topics" in a collection of documents.
 
+**The Intuition: Food vs. Pets**
+Imagine you have 3 documents:
+1.  "The cat ate the tuna."
+2.  "The dog chased the cat."
+3.  "The tuna was cooked."
 
+And 2 hidden topics: **A (Pets)** and **B (Food)**.
+*   The word "cat" would have a high probability in Topic A (Pets).
+*   The word "tuna" would have a high probability in Topic B (Food).
+*   Document 1 ("cat ate tuna") is a **mixture**: 50% Topic A + 50% Topic B.
+
+LDA reverse-engineers this. It asks: *"Given these words, what mix of topics best explains them?"*
+
+**The Hyperparameters (The Knobs):**
+*   **Alpha ($\alpha$):** Are documents focused on just 1 topic (Low Alpha) or do they cover many topics (High Alpha)?
+*   **Beta/Eta ($\eta$):** Are topics made of just a few specific words (Low Beta) or many broad words (High Beta)?
+
+**The Math (Simplified):**
+*   $\beta$ (Beta): The probability of a word given a topic.
+*   $\gamma$ (Gamma): The probability of a topic given a document.
+
+We reverse-engineer these distributions from the observed documents.
 
 ---
 
 ## Practical (130 Minutes)
 
-### R Exercise 3.1: Running LDA
-We cast the tidy data to a Document-Term Matrix (DTM) and run LDA [8]. 
+### R Exercise 3.1: Running LDA with `topicmodels`
 
-This block reconstructs the DTM to be self-contained.
+We will use the DTM created in the previous steps to run LDA.
 
 ```{r}
 #| label: r-lda
@@ -31,36 +49,49 @@ library(dplyr)
 library(ggplot2)
 library(janeaustenr)
 
-# 1. Self-contained Setup: Create DTM
+# 1. Setup Data (Recap from Module 2)
+# We need a Document-Term Matrix (DTM) for the topicmodels package
 data("stop_words")
 dtm <- austen_books() %>%
   unnest_tokens(word, text) %>%
-  anti_join(stop_words) %>%
+  anti_join(stop_words, by = "word") %>%
   count(book, word) %>%
   cast_dtm(book, word, n)
 
-# 2. Run LDA with k=2 topics
+# 2. Run LDA
+# k=2: We ask the model to find 2 distinct topics
+# seed: Ensures reproducibility
 lda_model <- LDA(dtm, k = 2, control = list(seed = 1234))
 
-# 3. Extract Beta (Word-Topic Probabilities)
+# 3. Inspect Word-Topic Probabilities (Beta)
+# tidy() converts the complex model object back into a data frame
 topics <- tidy(lda_model, matrix = "beta")
 
-# 4. Visualize
+# 4. Visualize Top Terms per Topic
+# This answers: "What words define Topic 1 vs Topic 2?"
 top_terms <- topics %>%
   group_by(topic) %>%
-  slice_max(beta, n = 5) 
+  slice_max(beta, n = 10) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
 
 top_terms %>%
   mutate(term = reorder_within(term, beta, topic)) %>%
   ggplot(aes(beta, term, fill = factor(topic))) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free") +
-  scale_y_reordered()
+  scale_y_reordered() +
+  labs(title = "Top Words per Topic", x = "Beta (Probability)")
 ```
 
-### Python Exercise 3.2: Gensim LDA
+### Python Exercise 3.2: LDA with `Gensim`
 
-We use the Gensim library to train an LDA model on our corpus. This code is fully self-contained. [7].
+Gensim is the industrial standard for topic modeling in Python.
+
+**Key Steps:**
+1.  **Dictionary**: A mapping of Word -> Integer ID.
+2.  **Corpus**: The document collection converted to a Bag-of-Words (List of (ID, Count) tuples).
+3.  **LdaModel**: The training class.
 
 ```{python}
 #| label: python-lda
@@ -69,44 +100,50 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from gensim import corpora, models
 
-# 1. Setup Data (Self-contained)
+# 1. Sample Data
 documents = [
-    "Machine learning is fascinating and uses statistics.",
+    "Machine learning uses statistics to find patterns in data.",
     "Natural language processing analyzes text data structure.",
-    "Deep learning models require vast amounts of data and gpu.",
-    "Text analysis uses statistics to find patterns in words.",
-    "Gensim and NLTK are popular Python libraries for NLP."
+    "Deep learning requires vast amounts of data and gpu power.",
+    "Politics and elections are dominated by voting and polls.",
+    "The senate voted on the new bill yesterday."
 ]
 
+# 2. Preprocessing Pipeline
 stop_words = set(stopwords.words('english'))
 
-def process_text(text):
+def process(text):
     tokens = word_tokenize(text.lower())
+    # Keep only alphabetic words, remove stopwords
     return [t for t in tokens if t.isalpha() and t not in stop_words]
 
-# 2. Process
-processed_data = [process_text(doc) for doc in documents]
+processed_data = [process(d) for d in documents]
 
-# 3. Create Dictionary & BoW
+# 3. Create Dictionary & Corpus
+# Dictionary: Maps 'data' -> 0, 'learning' -> 1...
 dictionary = corpora.Dictionary(processed_data)
+
+# BoW Corpus: Doc 1 -> [(0, 1), (1, 1)...]
 bow_corpus = [dictionary.doc2bow(text) for text in processed_data]
 
-# 4. Train LDA
+# 4. Train LDA Model
 lda_model = models.LdaModel(
     bow_corpus, 
-    num_topics=2, 
+    num_topics=2,    # Asking for 2 topics (Tech vs Politics)
     id2word=dictionary, 
-    passes=10,
+    passes=15,       # Number of passes through the corpus
     random_state=42
 )
 
-# 5. Print Topics
+# 5. Interpret Topics
+# print_topics shows the most significant words for each topic
 print("--- Discovered Topics ---")
 for idx, topic in lda_model.print_topics(-1):
     print(f"Topic {idx}: {topic}")
 ```
 
 ---
+
 ## Homework: Interpreting Topics
 
 **Task:**

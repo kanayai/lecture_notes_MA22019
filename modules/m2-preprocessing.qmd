@@ -4,20 +4,38 @@ title: "Module 2: Preprocessing & Feature Engineering"
 
 ## Theory (15 Minutes)
 
-### Normalization Techniques
+### Why Clean Data? (Normalization)
+Computers are dumb. To a computer, "Apple", "apple", and "apples" are three completely different things. **Normalization** is the process of mapping these variations to a single canonical form to reduce the "vocabulary size" (dimensionality) of our data.
 
-* **Stop Words:** Removing non-semantic terms (e.g., "the", "is") [6].
-* **Stemming vs. Lemmatization:** Heuristic chopping (Stemming) vs. linguistic root finding (Lemmatization) [5].
-* **TF-IDF:** Weighing terms by their rarity to filter out common noise [6].
+### Key Techniques
 
+1.  **Stop Words**: 
+    Words like "the", "is", "at" appear frequently but often carry little semantic meaning for topics. Removing them reduces noise.
+    *   *Warning*: Be careful! "To be or not to be" is entirely stop words. Context matters.
 
+2.  **Stemming vs. Lemmatization**:
+    *   **Stemming**: A crude heuristic that chops off ends of words. Fast, but dumb.
+        *   *Example*: "Organization" -> "Organ". (Now your business document sounds like a medical one!)
+        *   *Example*: "Universities" -> "Univers".
+    *   **Lemmatization**: Uses a dictionary (lexicon) to return the base root form (lemma) of a word.
+        *   *Example*: "Better" -> "Good". (Stemming would fail here).
+
+3.  **TF-IDF (Term Frequency-Inverse Document Frequency)**:
+    A statistical metric to evaluate how important a word is to a document in a collection.
+    
+    $$ \text{TF-IDF} = \text{TF}(w,d) \times \log\left(\frac{N}{\text{df}(w)}\right) $$
+
+    *   **The Log Logic**: Why do we take the log of the inverse frequency?
+        *   If a word appears in *all* documents (e.g., "the"), $\frac{N}{\text{df}} = 1$ and $\log(1) = 0$. The word effectively vanishes.
+        *   The log dampens the effect of huge rarity differences, creating a smooth scale of importance.
 
 ---
 
 ## Practical (135 Minutes)
 
 ### R Exercise 2.1: Cleaning and TF-IDF
-We remove stop words and calculate term weights using the tidy workflow [4].
+
+We will inspect our most common "noise" words and then down-weight them using TF-IDF.
 
 ```{r}
 #| label: r-preprocessing
@@ -25,29 +43,40 @@ library(tidytext)
 library(dplyr)
 library(ggplot2)
 
-# Load tidy_books from Module 1
+# 1. Load the tidy data saved in Module 1
 tidy_books <- readRDS(here::here("data", "tidy_books.rds"))
 
-data("stop_words")
+# 2. Inspect Stop Words
+data("stop_words") # Provided by tidytext
+head(stop_words)
 
-# Clean and Calculate TF-IDF
-book_tf_idf <- tidy_books %>%
-  anti_join(stop_words) %>%
+# 3. Remove Stop Words (Anti-Join)
+# Think of this as: "Keep rows in A that do NOT match rows in B"
+tidy_books_clean <- tidy_books %>%
+  anti_join(stop_words, by = "word")
+
+# 4. Calculate TF-IDF
+# We want to know: What words are unique to each book?
+book_tf_idf <- tidy_books_clean %>%
   count(book, word, sort = TRUE) %>%
   bind_tf_idf(word, book, n)
 
-# Visualize Top Words
+# 5. Visualize Top Words per Book
 book_tf_idf %>%
   group_by(book) %>%
   slice_max(tf_idf, n = 5) %>%
-  ggplot(aes(tf_idf, reorder(word, tf_idf), fill = book)) +
+  ungroup() %>%
+  mutate(word = reorder_within(word, tf_idf, book)) %>%
+  ggplot(aes(tf_idf, word, fill = book)) +
   geom_col(show.legend = FALSE) +
-  facet_wrap(~book, scales = "free")
+  facet_wrap(~book, scales = "free") +
+  scale_y_reordered() +
+  labs(title = "Highest TF-IDF Words by Book", x = "TF-IDF Score", y = NULL)
 ```
 
-### Python Exercise 2.2: Vectorization
+### Python Exercise 2.2: Lemmatization & Bag-of-Words
 
-We use Gensim to create a Bag-of-Words (BoW) representation [7].
+Here we build a pipeline to clean text and convert it into a numerical format ("Bag of Words") that machine learning models can understand.
 
 ```{python}
 #| label: python-preprocessing
@@ -56,28 +85,53 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from gensim import corpora
 
+# Initialize resources
 lemmatizer = WordNetLemmatizer()
+# nltk.download('stopwords')
+# nltk.download('wordnet')
 stop_words = set(stopwords.words('english'))
 
 def clean_text(text):
+    """Tokenize, lower, remove stop words, and lemmatize."""
+    # 1. Tokenize & Lowercase
     tokens = nltk.word_tokenize(text.lower())
-    # Lemmatize and remove stop words
-    return [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+    
+    # 2. Filter & Transform
+    clean_tokens = []
+    for t in tokens:
+        if t.isalpha() and t not in stop_words:
+            # Lemmatize: 'running' -> 'run'
+            lemma = lemmatizer.lemmatize(t)
+            clean_tokens.append(lemma)
+    return clean_tokens
 
-# Create Corpus
-docs = ["Text analysis is useful.", "Data science involves analysis."]
-processed = [clean_text(d) for d in docs]
+# A mini corpus
+docs = [
+    "Text analysis is useful and fun.",
+    "Data science involves statistical analysis of data."
+]
 
-# Create Dictionary and BoW
-dictionary = corpora.Dictionary(processed)
-bow = [dictionary.doc2bow(doc) for doc in processed]
-print(f"BoW for Doc 1: {bow[0]}")
+# Process all docs
+processed_docs = [clean_text(d) for d in docs]
+print(f"Processed Doc 2: {processed_docs[1]}")
+
+# Create a Dictionary (Mapping: Word -> ID)
+dictionary = corpora.Dictionary(processed_docs)
+print(f"Dictionary: {dictionary.token2id}")
+
+# Create Bag of Words (Vector: ID -> Count) 
+# Doc 2: "data" (ID 0) appears 2 times, "analysis" (ID 1) appears 1 time...
+bow = [dictionary.doc2bow(doc) for doc in processed_docs]
+print(f"BoW for Doc 2: {bow[1]}")
 ```
 
 ---
+
 ## Concept Quiz
 
 1.  **True or False:** In the "tidy text" format, the standard structure is one-document-per-row.
-2.  **Short Answer:** Briefly explain the difference between **Stemming** and **Lemmatization**. Which one results in real dictionary words?
+    *   *Answer: False (one-token-per-row)*
+2.  **Short Answer:** Briefly explain the difference between **Stemming** and **Lemmatization**.
+    *   *Answer: Stemming chops off suffixes (fast, crude), Lemmatization finds the dictionary root (slower, accurate).*
 
 *Check your work against the Solution Key.*

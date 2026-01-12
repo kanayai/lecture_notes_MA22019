@@ -4,15 +4,31 @@ title: "Module 4: Applications & Inference"
 
 ## Theory (15 Minutes)
 
-* **Sentiment Analysis:** Using lexicons (like VADER) to score polarity [9].
-* **LLM Integration:** Using `mall` for zero-shot classification [10, 11].
+### Beyond Counting: Inference
+
+Once we have numbers (tokens, frequencies, topics), we can start asking questions.
+
+1.  **Sentiment Analysis (VADER)**:
+    VADER (Valence Aware Dictionary and sEntiment Reasoner) is designed for social media. It doesn't just count positive words. It uses **heuristics**:
+    *   **Punctuation**: "Good!!!" > "Good".
+    *   **Capitalization**: "GOOD" > "good".
+    *   **Negation**: "Not good" flips the score.
+    *   **Degree Modifiers**: "Extremely good" > "good".
+
+2.  **Comparative Analysis (Log-Odds)**:
+    When comparing vocabulary between two groups (e.g., Jane Austen vs. H.G. Wells), we often plot them on a logarithmic scale.
+    *   **Why Log?** Zipf's Law states that a few words are extremely common ("the", "and") while most are rare. A linear scale squashes all the interesting words into the corner. A Log-Log plot spreads them out so we can see the differences.
+
+3.  **Named Entity Recognition (NER)**:
+    Identifying real-world objects like "Apple" (Organization) vs. "apple" (fruit).
 
 ---
 
 ## Practical (135 Minutes)
 
 ### R Exercise 4.1: Comparative Analysis
-We compare word frequencies between authors to find distinctive terms [11].
+
+We will compare two of Jane Austen's books to see if her vocabulary shifted.
 
 ```{r}
 #| label: r-compare
@@ -23,62 +39,93 @@ library(stringr)
 library(dplyr)
 library(janeaustenr)
 library(tidytext)
+library(ggplot2)
 
-# 1. Self-contained Setup
-# We simulate a second author by splitting Austen's books for demonstration
-books <- austen_books()
-group_a <- books %>% filter(book == "Emma")
-group_b <- books %>% filter(book == "Persuasion")
+# 1. Setup Data: Comparing "Emma" vs "Persuasion"
+books <- austen_books() %>%
+  filter(book %in% c("Emma", "Persuasion"))
 
-combined <- bind_rows(
-  group_a %>% mutate(author = "Emma"),
-  group_b %>% mutate(author = "Persuasion")
-) %>%
-  unnest_tokens(word, text)
-
-# 2. Compare word frequency
-frequency <- combined %>%
-  mutate(word = str_extract(word, "[a-z']+")) %>%
-  count(author, word) %>%
-  group_by(author) %>%
+# 2. Calculate Word Frequencies by Book
+frequency <- books %>%
+  unnest_tokens(word, text) %>%
+  # Keep only letters (remove numbers/punctuation artifacts)
+  filter(str_detect(word, "[a-z]+")) %>%
+  count(book, word) %>%
+  group_by(book) %>%
+  # Normalize counts to frequencies (because book lengths differ)
   mutate(proportion = n / sum(n)) %>% 
-  pivot_wider(names_from = author, values_from = proportion) %>%
-  gather(author, proportion, -word)
-  
-head(frequency)
-```
-### Python Exercise 4.2: Sentiment & SpaCy
+  select(-n) %>% 
+  pivot_wider(names_from = book, values_from = proportion) %>%
+  # Pivot wider introduces NAs for words present in one book but not the other
+  # We use pivot_longer/gather logic or simple plotting
+  pivot_longer(cols = c("Emma", "Persuasion"), names_to = "book", values_to = "proportion")
 
-We use VADER for sentiment and SpaCy for Named Entity Recognition (NER) [9].
+# Wait, the pivot_wider above makes columns "Emma" and "Persuasion".
+# Let's redo for a cleaner X-Y plot:
+library(scales) # for log scales
+
+freq_wide <- books %>%
+  unnest_tokens(word, text) %>%
+  filter(str_detect(word, "[a-z]+")) %>%
+  count(book, word) %>%
+  group_by(book) %>%
+  mutate(proportion = n / sum(n)) %>% 
+  select(-n) %>%
+  pivot_wider(names_from = book, values_from = proportion)
+
+# 3. Visualize
+# Words near the diagonal line are used equally.
+# Words far from the line are distinctive.
+ggplot(freq_wide, aes(x = Emma, y = Persuasion)) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  labs(title = "Word Frequency Comparison", x = "Emma", y = "Persuasion")
+```
+
+### Python Exercise 4.2: Sentiment & NER with `SpaCy`
+
+SpaCy is a powerful, industrial-strength NLP library.
 
 ```{python}
 #| label: python-sentiment
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import spacy
 
-# 1. VADER Sentiment
+# 1. VADER Sentiment Analysis
+# VADER is rule-based and excellent for social media/short text
 sid = SentimentIntensityAnalyzer()
-text = "The analysis results were excellent! But the data was messy."
-print(f"Sentiment: {sid.polarity_scores(text)}")
+text_good = "The analysis results were excellent!"
+text_bad = "The data was messy and I hated cleaning it."
 
-# 2. SpaCy NER (Named Entity Recognition)
+print(f"Good Sentiment: {sid.polarity_scores(text_good)}")
+print(f"Bad Sentiment:  {sid.polarity_scores(text_bad)}")
+# Compound score > 0.05 is positive, < -0.05 is negative.
+
+# 2. SpaCy Named Entity Recognition (NER)
+# We need to load the English language model
 try:
     nlp = spacy.load("en_core_web_sm")
+    
     doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
+    
     print("\n--- Entities Detected ---")
     for ent in doc.ents:
-        print(f"{ent.text} ({ent.label_})")
+        print(f"{ent.text} -> {ent.label_}")
+        
 except OSError:
     print("SpaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
 ```
 
 ---
+
 ## Final Challenge: The "Bad" Review
 
 **Task:**
-1.  Create a python string containing a negative review: `"I absolutely hated this product. It was a complete waste of time and money."`
+1.  Create a python string containing a subtly negative review: `"It was okay, I guess."`
 2.  Use **VADER** to get the sentiment score.
-3.  **Question:** Does the `compound` score correctly reflect the negative sentiment (is it less than -0.05)?
+3.  **Question:** Does the `compound` score capture the mediocrity (is it near 0)?
 
 *Check your work against the Solution Key.*
-

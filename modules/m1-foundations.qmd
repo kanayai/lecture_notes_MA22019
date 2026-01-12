@@ -4,68 +4,123 @@ title: "Module 1: Foundations & Tokenization"
 
 ## Theory (30 Minutes)
 
-### Core Concepts
-Text Data Analysis (TDA) turns unstructured text into structured insights [1].
+### Core Concepts: The Lego Analogy
 
-* **R Principle:** The **Tidy Text** format (one-token-per-row) allows seamless integration with `dplyr` and `ggplot2` [4, 5].
-* **Python Principle:** Libraries like `NLTK` and `SpaCy` focus on object-oriented pipelines for production environments [2].
+Think of a document (a book, a tweet, a report) like a **completed Lego castle**.
+*   **Text Data Analysis** is the process of smashing that castle apart to see what bricks were used.
+*   **Tokenization** is the act of taking the wall apart brick-by-brick.
+*   **Tokens** are the individual bricks (words).
+*   **Corpus** is the giant tub of bricks from all the castles combined.
 
+We analyze the *frequency* and *co-occurrence* of these bricks to infer what kind of structure gave rise to them. (e.g., "This pile has lots of grey 1x2 bricks, it must have been a castle fortress.")
 
+### Two Philosophies: Tidy vs. Object-Oriented
+
+There are two major ways to organize these bricks in code.
+
+| Feature | **Tidy Text (R)** | **Object-Oriented (Python)** |
+| :--- | :--- | :--- |
+| **Data Structure** | A long table (Data Frame). One row per token. | A complex Object (`doc`) containing lists of tokens, tags, and entities. |
+| **Mental Model** | "Spreadsheet" logic. We filter, group, and join. | "Pipeline" logic. Text flows through processors (Tagging -> Parsing). |
+| **Primary Libraries**| `tidytext`, `dplyr`, `ggplot2` | `spaCy`, `NLTK`, `gensim` |
+| **Best For...** | Exploratory Data Analysis (EDA), Visualization, Statistics. | production pipelines, Building Apps, Deep Learning. |
+
+### The Details: Text Normalization
+One crucial step in tokenization is decision-making about **Normalization**.
+*   **Case Sensitivity**: Should "Apple" (the company) and "apple" (the fruit) be counted as the same token?
+    *   *Standard approach*: Lowercase everything to group "The" and "the".
+    *   *Risk*: You lose the distinction between proper nouns (US) and pronouns (us).
+*   **Punctuation**: Usually removed, but crucial for Sentiment Analysis (e.g., "!!!" implies intensity).
 
 ---
 
 ## Practical (120 Minutes)
 
 ### R Exercise 1.1: Tidy Corpus Creation
-We use `janeaustenr` to load data and `tidytext` to tokenize it into a tidy format [4].
+
+In this exercise, we will take "messy" book data and convert it into a tidy format.
+
+**Key Functions:**
+*   `unnest_tokens(tbl, output, input)`: Splitting a column of text (`input`) into tokens (`output`), flattening the table so there is one token per row.
 
 ```{r}
 #| label: r-tokenization
-library(janeaustenr)
-library(tidytext)
-library(dplyr)
+library(janeaustenr) # Provides the corpus
+library(tidytext)    # Provides unnest_tokens()
+library(dplyr)       # Data manipulation
 
-# Load data
-original_books <- austen_books()
+# 1. Load data
+# austen_books() returns a tibble with a 'text' column (lines of the books)
+original_books <- austen_books() 
 
-# Convert to tidy format: one-token-per-row
+# 2. Convert to tidy format: one-token-per-row
 tidy_books <- original_books %>%
+  # Grouping allows us to track line numbers relative to each book
   group_by(book) %>%
   mutate(linenumber = row_number()) %>%
   ungroup() %>%
+  # The Magic Step: Tokenize the 'text' column into a new 'word' column
+  # This defaults to converting to lowercase and stripping punctuation
   unnest_tokens(word, text)
 
-# Save for use in other modules
-saveRDS(tidy_books, here::here("data", "tidy_books.rds"))
-
+# 3. Inspect the structure
+# Notice how the number of rows has exploded? That's characteristic of tidy text.
 head(tidy_books)
+
+# 4. Save for use in other modules
+saveRDS(tidy_books, here::here("data", "tidy_books.rds"))
 ```
 
 ### Python Exercise 1.2: Tokenization & N-grams
 
-We use NLTK to segment text and generate bigrams (sequences of two words) [3].
+Python's `NLTK` (Natural Language Toolkit) is a standard library for teaching NLP. It provides explicit control over how text is split.
+
+**Concepts:**
+*   `word_tokenize`: Uses trained models to split punctuation from words (e.g., "don't" -> "do", "n't").
+*   `ngrams`: Creating sequences of N contiguous items (e.g., "New York City" is a trigram).
 
 ```{python}
 #| label: python-tokenization
 import nltk
 from nltk.util import ngrams
 
-# Sample text data
-text = "Text Data Analysis is essential for insights."
-tokens = nltk.word_tokenize(text)
+# Ensure you have the necessary NLTK data (run once)
+# nltk.download('punkt') 
 
-# Generate Bigrams
-bigrams = list(ngrams(tokens, 2))
+# Sample text data
+text = "Text Data Analysis is essential for insights. It's fun too!"
+
+# 1. Basic Tokenization
+# splits text into specific word/punctuation tokens
+tokens = nltk.word_tokenize(text)
 print(f"Tokens: {tokens}")
+
+# 2. Generating Bigrams (n=2)
+# useful for preserving context (e.g. "not happy")
+bigrams = list(ngrams(tokens, 2))
 print(f"Bigrams: {bigrams}")
+
+# 3. List Comprehensions for filtering
+# Pythonic way to filter list items. Here we keep only length > 2
+long_words = [w for w in tokens if len(w) > 2]
+print(f"Long words: {long_words}")
 ```
 
 ---
+
+## Key Takeaways
+
+*   **Unstructured -> Structured**: The first step of any analysis is converting raw text strings into a format the computer can count and measure.
+*   **Granularity**: We usually start at the *word* level (unigrams), but can move to *n-grams* to capture phrase-level meaning.
+*   **Tool Choice**: R is excellent for *exploratory* analysis (tabular view), while Python shines in *processing pipelines*.
+
+---
+
 ## Homework Challenge: The Time Machine
 
 **Objective:** Apply tokenization techniques to a new text.
 
 1.  **R Task:** Use `gutenbergr` to download H.G. Wells' *The Time Machine* (Gutenberg ID **35**). Convert the text into a tidy format using `unnest_tokens`.
-2.  **Python Task:** Copy the raw text of the first paragraph. Use `NLTK` to tokenize the text and filter out any tokens that are punctuation (keep only alphabetic words).
+2.  **Python Task:** Copy the raw text of the first paragraph. Use `NLTK` to tokenize the text and filter out any tokens that are punctuation (keep only alphabetic words - hint: look up `.isalpha()`).
 
 *Check your work against the Solution Key.*
