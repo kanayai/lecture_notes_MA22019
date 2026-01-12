@@ -1,0 +1,71 @@
+---
+title: "Module 1: Foundations & Tokenization"
+---
+
+## Theory (30 Minutes)
+
+### Core Concepts
+Text Data Analysis (TDA) turns unstructured text into structured insights [1].
+
+* **R Principle:** The **Tidy Text** format (one-token-per-row) allows seamless integration with `dplyr` and `ggplot2` [4, 5].
+* **Python Principle:** Libraries like `NLTK` and `SpaCy` focus on object-oriented pipelines for production environments [2].
+
+
+
+---
+
+## Practical (120 Minutes)
+
+### R Exercise 1.1: Tidy Corpus Creation
+We use `janeaustenr` to load data and `tidytext` to tokenize it into a tidy format [4].
+
+```{r}
+#| label: r-tokenization
+library(janeaustenr)
+library(tidytext)
+library(dplyr)
+
+# Load data
+original_books <- austen_books()
+
+# Convert to tidy format: one-token-per-row
+tidy_books <- original_books %>%
+  group_by(book) %>%
+  mutate(linenumber = row_number()) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+
+# Save for use in other modules
+saveRDS(tidy_books, here::here("data", "tidy_books.rds"))
+
+head(tidy_books)
+```
+
+### Python Exercise 1.2: Tokenization & N-grams
+
+We use NLTK to segment text and generate bigrams (sequences of two words) [3].
+
+```{python}
+#| label: python-tokenization
+import nltk
+from nltk.util import ngrams
+
+# Sample text data
+text = "Text Data Analysis is essential for insights."
+tokens = nltk.word_tokenize(text)
+
+# Generate Bigrams
+bigrams = list(ngrams(tokens, 2))
+print(f"Tokens: {tokens}")
+print(f"Bigrams: {bigrams}")
+```
+
+---
+## Homework Challenge: The Time Machine
+
+**Objective:** Apply tokenization techniques to a new text.
+
+1.  **R Task:** Use `gutenbergr` to download H.G. Wells' *The Time Machine* (Gutenberg ID **35**). Convert the text into a tidy format using `unnest_tokens`.
+2.  **Python Task:** Copy the raw text of the first paragraph. Use `NLTK` to tokenize the text and filter out any tokens that are punctuation (keep only alphabetic words).
+
+*Check your work against the Solution Key.*

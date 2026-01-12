@@ -1,0 +1,27 @@
+project:
+  type: website
+
+website:
+  title: "Text Analysis in R & Python"
+  sidebar:
+    style: "floating"
+    contents:
+      - section: "Course Info"
+        contents:
+          - index.qmd
+      - section: "Modules"
+        contents:
+          - modules/m1-foundations.qmd
+          - modules/m2-preprocessing.qmd
+          - modules/m3-topic-modeling.qmd
+          - modules/m4-inference.qmd
+      - section: "Resources"
+        contents:
+          - solutions/solutions.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: show # Allows students to hide/show code
+    code-copy: true

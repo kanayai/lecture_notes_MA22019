@@ -1,0 +1,117 @@
+---
+title: "Module 3: Topic Modeling"
+---
+
+## Theory (20 Minutes)
+
+### LDA Architecture
+Latent Dirichlet Allocation (LDA) is a generative probabilistic model that assumes documents are mixtures of topics [7].
+
+* **Beta Matrix ($\beta$):** Probability of a word occurring in a topic.
+* **Gamma Matrix ($\gamma$):** Probability of a topic occurring in a document [8].
+
+
+
+---
+
+## Practical (130 Minutes)
+
+### R Exercise 3.1: Running LDA
+We cast the tidy data to a Document-Term Matrix (DTM) and run LDA [8]. 
+
+This block reconstructs the DTM to be self-contained.
+
+```{r}
+#| label: r-lda
+#| message: false
+#| warning: false
+library(topicmodels)
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+library(janeaustenr)
+
+# 1. Self-contained Setup: Create DTM
+data("stop_words")
+dtm <- austen_books() %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  count(book, word) %>%
+  cast_dtm(book, word, n)
+
+# 2. Run LDA with k=2 topics
+lda_model <- LDA(dtm, k = 2, control = list(seed = 1234))
+
+# 3. Extract Beta (Word-Topic Probabilities)
+topics <- tidy(lda_model, matrix = "beta")
+
+# 4. Visualize
+top_terms <- topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 5) 
+
+top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+### Python Exercise 3.2: Gensim LDA
+
+We use the Gensim library to train an LDA model on our corpus. This code is fully self-contained. [7].
+
+```{python}
+#| label: python-lda
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from gensim import corpora, models
+
+# 1. Setup Data (Self-contained)
+documents = [
+    "Machine learning is fascinating and uses statistics.",
+    "Natural language processing analyzes text data structure.",
+    "Deep learning models require vast amounts of data and gpu.",
+    "Text analysis uses statistics to find patterns in words.",
+    "Gensim and NLTK are popular Python libraries for NLP."
+]
+
+stop_words = set(stopwords.words('english'))
+
+def process_text(text):
+    tokens = word_tokenize(text.lower())
+    return [t for t in tokens if t.isalpha() and t not in stop_words]
+
+# 2. Process
+processed_data = [process_text(doc) for doc in documents]
+
+# 3. Create Dictionary & BoW
+dictionary = corpora.Dictionary(processed_data)
+bow_corpus = [dictionary.doc2bow(text) for text in processed_data]
+
+# 4. Train LDA
+lda_model = models.LdaModel(
+    bow_corpus, 
+    num_topics=2, 
+    id2word=dictionary, 
+    passes=10,
+    random_state=42
+)
+
+# 5. Print Topics
+print("--- Discovered Topics ---")
+for idx, topic in lda_model.print_topics(-1):
+    print(f"Topic {idx}: {topic}")
+```
+
+---
+## Homework: Interpreting Topics
+
+**Task:**
+1.  Run the LDA code from the practical section with `k=3` topics instead of 2.
+2.  Look at the top words for each of the 3 topics.
+3.  **Concept Question:** Based on the top words, give a human-readable label to each topic (e.g., "Romance", "Daily Life", "Politics").
+
+*Check your work against the Solution Key.*

@@ -1,0 +1,83 @@
+---
+title: "Module 2: Preprocessing & Feature Engineering"
+---
+
+## Theory (15 Minutes)
+
+### Normalization Techniques
+
+* **Stop Words:** Removing non-semantic terms (e.g., "the", "is") [6].
+* **Stemming vs. Lemmatization:** Heuristic chopping (Stemming) vs. linguistic root finding (Lemmatization) [5].
+* **TF-IDF:** Weighing terms by their rarity to filter out common noise [6].
+
+
+
+---
+
+## Practical (135 Minutes)
+
+### R Exercise 2.1: Cleaning and TF-IDF
+We remove stop words and calculate term weights using the tidy workflow [4].
+
+```{r}
+#| label: r-preprocessing
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+
+# Load tidy_books from Module 1
+tidy_books <- readRDS(here::here("data", "tidy_books.rds"))
+
+data("stop_words")
+
+# Clean and Calculate TF-IDF
+book_tf_idf <- tidy_books %>%
+  anti_join(stop_words) %>%
+  count(book, word, sort = TRUE) %>%
+  bind_tf_idf(word, book, n)
+
+# Visualize Top Words
+book_tf_idf %>%
+  group_by(book) %>%
+  slice_max(tf_idf, n = 5) %>%
+  ggplot(aes(tf_idf, reorder(word, tf_idf), fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~book, scales = "free")
+```
+
+### Python Exercise 2.2: Vectorization
+
+We use Gensim to create a Bag-of-Words (BoW) representation [7].
+
+```{python}
+#| label: python-preprocessing
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from gensim import corpora
+
+lemmatizer = WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
+
+def clean_text(text):
+    tokens = nltk.word_tokenize(text.lower())
+    # Lemmatize and remove stop words
+    return [lemmatizer.lemmatize(t) for t in tokens if t.isalpha() and t not in stop_words]
+
+# Create Corpus
+docs = ["Text analysis is useful.", "Data science involves analysis."]
+processed = [clean_text(d) for d in docs]
+
+# Create Dictionary and BoW
+dictionary = corpora.Dictionary(processed)
+bow = [dictionary.doc2bow(doc) for doc in processed]
+print(f"BoW for Doc 1: {bow[0]}")
+```
+
+---
+## Concept Quiz
+
+1.  **True or False:** In the "tidy text" format, the standard structure is one-document-per-row.
+2.  **Short Answer:** Briefly explain the difference between **Stemming** and **Lemmatization**. Which one results in real dictionary words?
+
+*Check your work against the Solution Key.*

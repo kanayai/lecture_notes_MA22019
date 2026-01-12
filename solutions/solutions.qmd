@@ -1,0 +1,279 @@
+---
+title: "Instructor Solution Key & Assessment Guide"
+format:
+  html:
+    toc: true
+    code-fold: show
+---
+
+This page contains the answers to all quizzes, homework assignments, and advanced expansion challenges for the 10-hour Text Analysis course.
+
+---
+
+## Module 1: Foundations & Tokenization
+
+### Part A: Concept Quiz
+
+**Q1. True or False:** The "Tidy Text" format is structured as one-document-per-row.
+> **Answer:** **False.** The Tidy Text principle is **one-token-per-row**. This structure allows us to use standard data manipulation tools like `dplyr` to filter and join datasets at the word level.
+
+**Q2. Multiple Choice:** Which specific R function is used to split a text column into individual tokens?
+* A) `separate_rows()`
+* B) `unnest_tokens()`
+* C) `str_split()`
+> **Answer:** **B) `unnest_tokens()`**. While `str_split` can do this, `unnest_tokens` is the dedicated tidytext function that handles lowercasing and punctuation removal automatically.
+
+**Q3. True/False:** Tokenization always splits text strictly by white space.
+> **Answer:** **False.** Good tokenizers (like those in `tidytext` or `nltk`) handle punctuation intelligently. For example, "It's" might be split into "It" and "'s" depending on the engine, and "New York" might be kept as one token if n-grams are used.
+
+### Part B: Practical Homework (The Time Machine)
+
+**Task:** Download H.G. Wells' *The Time Machine* and perform tokenization.
+
+**R Solution:**
+```{r}
+#| eval: false
+library(gutenbergr)
+library(tidytext)
+library(dplyr)
+
+# ID 35 is The Time Machine
+hg_wells <- gutenberg_download(35) %>% 
+  unnest_tokens(word, text)
+
+# Inspect the tidy structure
+head(hg_wells)
+```
+
+**Python Solution:**
+
+```{python}
+#| eval: false
+import nltk
+# nltk.download('punkt') # Run once if needed
+
+raw_text = "The Time Traveller (for so it will be convenient to speak of him)..."
+
+# 1. Tokenize
+tokens = nltk.word_tokenize(raw_text)
+
+# 2. Filter for alphabetic words only (removing punctuation)
+clean_words = [t for t in tokens if t.isalpha()]
+
+print(clean_words[:10])
+```
+
+
+### Part C: Advanced Expansion Challenge
+
+R Challenge: Count words appearing more than 50 times in The Time Machine.
+
+```{r}
+#| eval: false
+hg_wells %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 50)
+```
+
+Python Challenge: Tokenize by Sentence instead of word.
+
+```{python}
+#| eval: false
+text_block = "The Time Traveller sat back. He smiled. It was done."
+sentences = nltk.sent_tokenize(text_block)
+print(sentences) 
+# Output: ['The Time Traveller sat back.', 'He smiled.', 'It was done.']
+```
+
+## Module 2: Preprocessing
+
+### Part A: Concept Quiz
+
+Q1. Concept Check: What is the primary difference between Stemming and Lemmatization?
+
+Answer: > * Stemming is a heuristic process that chops off the ends of words (e.g., "ponies" -> "poni"). It is fast but crude.
+
+Lemmatization uses a dictionary and morphological analysis to find the actual root form (e.g., "ponies" -> "pony").
+
+Q2. Concept Check: In the TF-IDF formula, what is the purpose of the IDF (Inverse Document Frequency) component?
+
+Answer: To penalize words that appear in every document. If a word like "the" appears in all documents, its IDF score is near zero, lowering its overall weight.
+
+Q3. R Knowledge: Which function converts a tidy data frame into a sparse matrix?
+
+A) cast_sparse()
+
+B) as.matrix()
+
+Answer: A) cast_sparse(). This is crucial for connecting tidytext workflows to machine learning packages like topicmodels or glmnet.
+
+### Part B: Advanced Practice
+
+R Challenge: Visualize the top 10 words in Jane Austen's Persuasion.
+
+```{r}
+#| eval: false
+library(ggplot2)
+
+tidy_books %>%
+  filter(book == "Persuasion") %>%
+  count(word, sort = TRUE) %>%
+  top_n(10, n) %>%
+  ggplot(aes(x = reorder(word, n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Top Words in Persuasion")
+```
+
+Python Challenge: Demonstrate Stemming using the Porter Stemmer.
+
+```{python}
+#| eval: false
+from nltk.stem import PorterStemmer
+stemmer = PorterStemmer()
+
+words = ["running", "runs", "ran", "runner"]
+stemmed = [stemmer.stem(w) for w in words]
+
+print(stemmed)
+# Notice that "ran" typically stays "ran" in stemming, 
+# whereas a lemmatizer might map it to "run".
+```
+
+## Module 3: Topic Modeling
+
+### Part A: Concept Quiz
+
+Q1. True/False: LDA is a supervised learning algorithm.
+
+Answer: False. LDA is unsupervised. We do not tell it what the topics are in advance; the algorithm discovers the clusters based on word co-occurrence.
+
+Q2. Parameter Check: What controls the number of topics the model finds?
+
+A) Alpha
+
+B) Beta
+
+C) k
+
+Answer: C) k. You must specify k (e.g., k=2 or k=5) when initializing the model.
+
+### Part B: Practical Homework (Interpreting Topics)
+
+Task: Run LDA with k=3 and interpret the results.
+
+R Solution:
+
+```{r}
+#| eval: false
+# Fit model with 3 topics
+lda_3 <- LDA(dtm, k = 3, control = list(seed = 1234))
+
+# Extract words
+terms(lda_3, 5)
+```
+Interpretation Example:
+
+Topic 1: "love, heart, dear" -> Label: Romance
+
+Topic 2: "money, pounds, estate" -> Label: Wealth
+
+Topic 3: "time, house, day" -> Label: Daily Life
+
+### Part C: Advanced Expansion Challenge
+
+R Challenge: Inspect the Gamma (γ) matrix to see document probabilities.
+
+```{r}
+#| eval: false
+# The 'gamma' matrix shows the probability that a specific document belongs to a topic
+gamma_results <- tidy(lda_model, matrix = "gamma")
+
+# Sort to find which document is most strongly associated with Topic 1
+gamma_results %>% 
+  filter(topic == 1) %>%
+  arrange(desc(gamma))
+```
+
+
+Python Challenge: Train a Gensim model with 3 topics.
+
+```{python}
+#| eval: false
+lda_model_3 = models.LdaModel(
+    bow_corpus, 
+    num_topics=3, # Changed from 2 to 3
+    id2word=dictionary, 
+    passes=10
+)
+
+print(lda_model_3.print_topics())
+```
+
+## Module 4: Applications & Inference
+
+
+### Part A: Concept Quiz
+
+Q1. Score Range: The VADER compound sentiment score ranges from:
+
+A) 0 to 100
+
+B) -1 to +1
+
+Answer: B) -1 to +1, where -1 is most negative, 0 is neutral, and +1 is most positive.
+
+Q2. Methodology: TextBlob and VADER are examples of what type of sentiment analysis?
+
+A) Deep Learning
+
+B) Lexicon-based (Rule-based)
+
+Answer: B) Lexicon-based. They rely on pre-built dictionaries of words rated for sentiment, rather than training a neural network from scratch.
+
+### Part B: Practical Challenge (The "Bad" Review)
+
+Task: Analyze a negative sentence to see if VADER detects it.
+
+Python Solution:
+
+```{python}
+#| eval: false
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+sid = SentimentIntensityAnalyzer()
+text = "I absolutely hated this product. It was a complete waste of time and money."
+score = sid.polarity_scores(text)
+
+print(f"Compound Score: {score['compound']}")
+# Expected Result: A score close to -0.8 (Highly Negative)
+```
+
+
+### Part C: Advanced Expansion Challenge
+
+R Challenge: Use the "Bing" lexicon for binary sentiment counts.
+
+```{r}
+#| eval: false
+# Assumes hg_wells is loaded
+bing_counts <- hg_wells %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(sentiment)
+
+print(bing_counts)
+
+```
+
+Python Challenge: Compare VADER with TextBlob polarity.
+
+```{python}
+#| eval: false
+from textblob import TextBlob
+
+text = "The movie was not bad at all."
+blob = TextBlob(text)
+
+print(f"TextBlob Polarity: {blob.sentiment.polarity}")
+# TextBlob handles negation ("not bad") to produce a positive score (> 0).
+```

@@ -1,0 +1,27 @@
+---
+title: "Text Data Analysis: R Tidytext and Python Fundamentals"
+---
+
+Welcome to the **10-hour intensive course** on Text Data Analysis. This curriculum balances **20% theory** with **80% hands-on application** [1]. We bridge statistical rigor (R) with production workflows (Python).
+
+## Course Schedule
+
+| Module | Focus Area | Duration | Key Sources |
+|--------|------------|----------|-------------|
+| **1** | Foundations & Tokenization | 2.5 Hours | [1, 4, 5] |
+| **2** | Preprocessing & DTM Creation | 2.5 Hours | [6] |
+| **3** | Topic Modeling (LDA/LSA) | 2.5 Hours | [7, 8] |
+| **4** | Applications & Inference | 2.5 Hours | [9, 10, 11] |
+
+## Course References
+1.  *Text Analysis Curriculum: 10 Hour Design Blueprint* (2025).
+2.  *Comparative Analysis of Introductory Text Data Analysis Methodologies*.
+3.  *Applied Text Mining in Python*, Coursera (2025).
+4.  Silge & Robinson, *Text Mining with R: A Tidy Approach* (2017).
+5.  *Introduction to Text Analysis In R*, eCampusOntario.
+6.  Koukaras et al., *Data Preprocessing and Feature Engineering* (MDPI, 2025).
+7.  *Topic Modeling with Gensim (Python)*, Machine Learning Plus.
+8.  *Topic models*, Tutorials for quanteda.
+9.  *Intro to TextBlob* & *SpaCy 101 Guides*.
+10. *mall: Text Summarization and Classification*, Posit (2025).
+11. *Modern Text Data Analysis: A Tidy and LLM Framework*.

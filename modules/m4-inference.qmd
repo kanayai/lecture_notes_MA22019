@@ -1,0 +1,84 @@
+---
+title: "Module 4: Applications & Inference"
+---
+
+## Theory (15 Minutes)
+
+* **Sentiment Analysis:** Using lexicons (like VADER) to score polarity [9].
+* **LLM Integration:** Using `mall` for zero-shot classification [10, 11].
+
+---
+
+## Practical (135 Minutes)
+
+### R Exercise 4.1: Comparative Analysis
+We compare word frequencies between authors to find distinctive terms [11].
+
+```{r}
+#| label: r-compare
+#| message: false
+#| warning: false
+library(tidyr)
+library(stringr)
+library(dplyr)
+library(janeaustenr)
+library(tidytext)
+
+# 1. Self-contained Setup
+# We simulate a second author by splitting Austen's books for demonstration
+books <- austen_books()
+group_a <- books %>% filter(book == "Emma")
+group_b <- books %>% filter(book == "Persuasion")
+
+combined <- bind_rows(
+  group_a %>% mutate(author = "Emma"),
+  group_b %>% mutate(author = "Persuasion")
+) %>%
+  unnest_tokens(word, text)
+
+# 2. Compare word frequency
+frequency <- combined %>%
+  mutate(word = str_extract(word, "[a-z']+")) %>%
+  count(author, word) %>%
+  group_by(author) %>%
+  mutate(proportion = n / sum(n)) %>% 
+  pivot_wider(names_from = author, values_from = proportion) %>%
+  gather(author, proportion, -word)
+  
+head(frequency)
+```
+### Python Exercise 4.2: Sentiment & SpaCy
+
+We use VADER for sentiment and SpaCy for Named Entity Recognition (NER) [9].
+
+```{python}
+#| label: python-sentiment
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import spacy
+
+# 1. VADER Sentiment
+sid = SentimentIntensityAnalyzer()
+text = "The analysis results were excellent! But the data was messy."
+print(f"Sentiment: {sid.polarity_scores(text)}")
+
+# 2. SpaCy NER (Named Entity Recognition)
+try:
+    nlp = spacy.load("en_core_web_sm")
+    doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
+    print("\n--- Entities Detected ---")
+    for ent in doc.ents:
+        print(f"{ent.text} ({ent.label_})")
+except OSError:
+    print("SpaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
+```
+
+---
+## Final Challenge: The "Bad" Review
+
+**Task:**
+1.  Create a python string containing a negative review: `"I absolutely hated this product. It was a complete waste of time and money."`
+2.  Use **VADER** to get the sentiment score.
+3.  **Question:** Does the `compound` score correctly reflect the negative sentiment (is it less than -0.05)?
+
+*Check your work against the Solution Key.*
+
