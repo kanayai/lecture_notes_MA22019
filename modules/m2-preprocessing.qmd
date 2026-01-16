@@ -14,6 +14,7 @@ Computers are dumb. To a computer, "Apple", "apple", and "apples" are three comp
     *   *Warning*: Be careful! "To be or not to be" is entirely stop words. Context matters.
 
 2.  **Stemming vs. Lemmatization**:
+
     *   **Stemming**: A crude heuristic that chops off ends of words. Fast, but dumb.
         *   *Example*: "Organization" -> "Organ". (Now your business document sounds like a medical one!)
         *   *Example*: "Universities" -> "Univers".
@@ -53,76 +54,79 @@ head(stop_words)
 # 3. Remove Stop Words (Anti-Join)
 # Think of this as: "Keep rows in A that do NOT match rows in B"
 tidy_books_clean <- tidy_books %>%
-  anti_join(stop_words, by = "word")
+    anti_join(stop_words, by = "word")
 
 # 4. Calculate TF-IDF
 # We want to know: What words are unique to each book?
 book_tf_idf <- tidy_books_clean %>%
-  count(book, word, sort = TRUE) %>%
-  bind_tf_idf(word, book, n)
+    count(book, word, sort = TRUE) %>%
+    bind_tf_idf(word, book, n)
 
 # 5. Visualize Top Words per Book
 book_tf_idf %>%
-  group_by(book) %>%
-  slice_max(tf_idf, n = 5) %>%
-  ungroup() %>%
-  mutate(word = reorder_within(word, tf_idf, book)) %>%
-  ggplot(aes(tf_idf, word, fill = book)) +
-  geom_col(show.legend = FALSE) +
-  facet_wrap(~book, scales = "free") +
-  scale_y_reordered() +
-  labs(title = "Highest TF-IDF Words by Book", x = "TF-IDF Score", y = NULL)
+    group_by(book) %>%
+    slice_max(tf_idf, n = 5) %>%
+    ungroup() %>%
+    mutate(word = reorder_within(word, tf_idf, book)) %>%
+    ggplot(aes(tf_idf, word, fill = book)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~book, scales = "free") +
+    scale_y_reordered() +
+    labs(title = "Highest TF-IDF Words by Book", x = "TF-IDF Score", y = NULL)
 ```
 
-### Python Exercise 2.2: Lemmatization & Bag-of-Words
+### R Exercise 2.2: Lemmatization & Bag-of-Words
 
-Here we build a pipeline to clean text and convert it into a numerical format ("Bag of Words") that machine learning models can understand.
+Standard `tidytext` tokenization often leaves words in their plural forms or different conjugations (e.g., "run", "running", "ran"). **Lemmatization** reduces these to their root form.
 
-```{python}
-#| label: python-preprocessing
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-from gensim import corpora
+We will use the `textstem` package, which is excellent for lemmatizing vector strings in R.
 
-# Initialize resources
-lemmatizer = WordNetLemmatizer()
-# nltk.download('stopwords')
-# nltk.download('wordnet')
-stop_words = set(stopwords.words('english'))
+```{r}
+#| label: r-lemmatization
+library(textstem)
+library(tidyr)
 
-def clean_text(text):
-    """Tokenize, lower, remove stop words, and lemmatize."""
-    # 1. Tokenize & Lowercase
-    tokens = nltk.word_tokenize(text.lower())
-    
-    # 2. Filter & Transform
-    clean_tokens = []
-    for t in tokens:
-        if t.isalpha() and t not in stop_words:
-            # Lemmatize: 'running' -> 'run'
-            lemma = lemmatizer.lemmatize(t)
-            clean_tokens.append(lemma)
-    return clean_tokens
+# 1. Inspect words before lemmatization
+# Let's look at forms of the word "love" in Jane Austen
+tidy_books %>%
+    filter(grepl("^lov", word)) %>%
+    count(word, sort = TRUE) %>%
+    head(5)
 
-# A mini corpus
-docs = [
-    "Text analysis is useful and fun.",
-    "Data science involves statistical analysis of data."
-]
+# 2. Apply Lemmatization
+# We mutate the 'word' column to its lemma
+tidy_books_lemm <- tidy_books %>%
+    mutate(lemma = lemmatize_words(word))
 
-# Process all docs
-processed_docs = [clean_text(d) for d in docs]
-print(f"Processed Doc 2: {processed_docs[1]}")
+# 3. Inspect results
+# "loved", "loves", "loving" should all map to "love"
+tidy_books_lemm %>%
+    filter(grepl("^lov", lemma)) %>%
+    count(lemma, sort = TRUE) %>%
+    head(5)
+```
 
-# Create a Dictionary (Mapping: Word -> ID)
-dictionary = corpora.Dictionary(processed_docs)
-print(f"Dictionary: {dictionary.token2id}")
+### Manual "Bag of Words" (DTM) Construction
 
-# Create Bag of Words (Vector: ID -> Count) 
-# Doc 2: "data" (ID 0) appears 2 times, "analysis" (ID 1) appears 1 time...
-bow = [dictionary.doc2bow(doc) for doc in processed_docs]
-print(f"BoW for Doc 2: {bow[1]}")
+Machine learning algorithms (like Topic Modeling) generally don't accept a tidy data frame. They need a matrix where rows are documents and columns are words. This is often called a **Document-Term Matrix (DTM)**.
+
+```{r}
+#| label: r-dtm-creation
+
+# 1. Create a count table
+# We count how many times each word appears in each book
+word_counts <- tidy_books_lemm %>%
+    anti_join(stop_words, by = "word") %>%
+    count(book, lemma, sort = TRUE)
+
+# 2. Cast to DTM
+# This converts the long tidy format into a sparse matrix
+dtm_books <- word_counts %>%
+    cast_dtm(book, lemma, n)
+
+# Inspect the DTM
+dtm_books
+# Note the Sparsity: content is mostly empty (0s) because most words don't appear in most documents.
 ```
 
 ---

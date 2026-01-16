@@ -10,6 +10,7 @@ Once we have numbers (tokens, frequencies, topics), we can start asking question
 
 1.  **Sentiment Analysis (VADER)**:
     VADER (Valence Aware Dictionary and sEntiment Reasoner) is designed for social media. It doesn't just count positive words. It uses **heuristics**:
+    
     *   **Punctuation**: "Good!!!" > "Good".
     *   **Capitalization**: "GOOD" > "good".
     *   **Negation**: "Not good" flips the score.
@@ -43,89 +44,103 @@ library(ggplot2)
 
 # 1. Setup Data: Comparing "Emma" vs "Persuasion"
 books <- austen_books() %>%
-  filter(book %in% c("Emma", "Persuasion"))
+    filter(book %in% c("Emma", "Persuasion"))
 
 # 2. Calculate Word Frequencies by Book
 frequency <- books %>%
-  unnest_tokens(word, text) %>%
-  # Keep only letters (remove numbers/punctuation artifacts)
-  filter(str_detect(word, "[a-z]+")) %>%
-  count(book, word) %>%
-  group_by(book) %>%
-  # Normalize counts to frequencies (because book lengths differ)
-  mutate(proportion = n / sum(n)) %>% 
-  select(-n) %>% 
-  pivot_wider(names_from = book, values_from = proportion) %>%
-  # Pivot wider introduces NAs for words present in one book but not the other
-  # We use pivot_longer/gather logic or simple plotting
-  pivot_longer(cols = c("Emma", "Persuasion"), names_to = "book", values_to = "proportion")
+    unnest_tokens(word, text) %>%
+    # Keep only letters (remove numbers/punctuation artifacts)
+    filter(str_detect(word, "[a-z]+")) %>%
+    count(book, word) %>%
+    group_by(book) %>%
+    # Normalize counts to frequencies (because book lengths differ)
+    mutate(proportion = n / sum(n)) %>%
+    select(-n) %>%
+    pivot_wider(names_from = book, values_from = proportion) %>%
+    # Pivot wider introduces NAs for words present in one book but not the other
+    # We use pivot_longer/gather logic or simple plotting
+    pivot_longer(cols = c("Emma", "Persuasion"), names_to = "book", values_to = "proportion")
 
 # Wait, the pivot_wider above makes columns "Emma" and "Persuasion".
 # Let's redo for a cleaner X-Y plot:
 library(scales) # for log scales
 
 freq_wide <- books %>%
-  unnest_tokens(word, text) %>%
-  filter(str_detect(word, "[a-z]+")) %>%
-  count(book, word) %>%
-  group_by(book) %>%
-  mutate(proportion = n / sum(n)) %>% 
-  select(-n) %>%
-  pivot_wider(names_from = book, values_from = proportion)
+    unnest_tokens(word, text) %>%
+    filter(str_detect(word, "[a-z]+")) %>%
+    count(book, word) %>%
+    group_by(book) %>%
+    mutate(proportion = n / sum(n)) %>%
+    select(-n) %>%
+    pivot_wider(names_from = book, values_from = proportion)
 
 # 3. Visualize
 # Words near the diagonal line are used equally.
 # Words far from the line are distinctive.
 ggplot(freq_wide, aes(x = Emma, y = Persuasion)) +
-  geom_abline(color = "gray40", lty = 2) +
-  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
-  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
-  scale_x_log10(labels = percent_format()) +
-  scale_y_log10(labels = percent_format()) +
-  labs(title = "Word Frequency Comparison", x = "Emma", y = "Persuasion")
+    geom_abline(color = "gray40", lty = 2) +
+    geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+    geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+    scale_x_log10(labels = percent_format()) +
+    scale_y_log10(labels = percent_format()) +
+    labs(title = "Word Frequency Comparison", x = "Emma", y = "Persuasion")
 ```
 
-### Python Exercise 4.2: Sentiment & NER with `SpaCy`
+### R Exercise 4.2: Network Analysis (Entities & Relationships)
 
-SpaCy is a powerful, industrial-strength NLP library.
+### R Exercise 4.2: Network Analysis (Entities & Relationships)
 
-```{python}
-#| label: python-sentiment
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-import spacy
+Named Entity Recognition (NER) is great for finding specific locations or people, but R shines at **Network Analysis**—finding how words relate to each other.
 
-# 1. VADER Sentiment Analysis
-# VADER is rule-based and excellent for social media/short text
-sid = SentimentIntensityAnalyzer()
-text_good = "The analysis results were excellent!"
-text_bad = "The data was messy and I hated cleaning it."
+We will visualize which words often appear together in Jane Austen's books.
 
-print(f"Good Sentiment: {sid.polarity_scores(text_good)}")
-print(f"Bad Sentiment:  {sid.polarity_scores(text_bad)}")
-# Compound score > 0.05 is positive, < -0.05 is negative.
+```{r}
+#| label: r-network
+#| message: false
+#| warning: false
+library(igraph)
+library(ggraph)
+library(tidyr)
 
-# 2. SpaCy Named Entity Recognition (NER)
-# We need to load the English language model
-try:
-    nlp = spacy.load("en_core_web_sm")
-    
-    doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
-    
-    print("\n--- Entities Detected ---")
-    for ent in doc.ents:
-        print(f"{ent.text} -> {ent.label_}")
-        
-except OSError:
-    print("SpaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
+# 1. Create Bigram Counts (Relationships)
+# We filter for common words to avoid a "hairball" graph
+bigram_graph <- austen_books() %>%
+    unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+    separate(bigram, c("word1", "word2"), sep = " ") %>%
+    filter(
+        !word1 %in% stop_words$word,
+        !word2 %in% stop_words$word
+    ) %>%
+    drop_na(word1, word2) %>%
+    count(word1, word2, sort = TRUE) %>%
+    filter(n > 20) %>%
+    graph_from_data_frame()
+
+# 2. Visualize the Network
+# This shows clusters of related concepts
+set.seed(2023)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+    geom_edge_link(aes(edge_alpha = n),
+        show.legend = FALSE,
+        arrow = a, end_cap = circle(.07, "inches")
+    ) +
+    geom_node_point(color = "lightblue", size = 5) +
+    geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+    theme_void() +
+    labs(title = "Common Bigram Network in Jane Austen")
 ```
 
 ---
 
-## Final Challenge: The "Bad" Review
+## Final Challenge: Sentiment Analysis with `bing`
 
 **Task:**
-1.  Create a python string containing a subtly negative review: `"It was okay, I guess."`
-2.  Use **VADER** to get the sentiment score.
-3.  **Question:** Does the `compound` score capture the mediocrity (is it near 0)?
+1.  Load the `bing` sentiment lexicon (`get_sentiments("bing")`).
+2.  Take **Emma** from `austen_books()`.
+3.  **Task:** Count how many "positive" vs "negative" words are in the book.
+4.  **Discussion:** Does the book have more positive or negative vocabulary?
 
 *Check your work against the Solution Key.*

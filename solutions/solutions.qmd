@@ -45,44 +45,36 @@ hg_wells <- gutenberg_download(35) %>%
 head(hg_wells)
 ```
 
-**Python Solution:**
+**Task:** Find the top 10 most common **trigrams**.
 
-```{python}
+**R Solution:**
+```{r}
 #| eval: false
-import nltk
-# nltk.download('punkt') # Run once if needed
+hg_wells_trigrams <- gutenberg_download(35) %>%
+  unnest_tokens(trigram, text, token = "ngrams", n = 3) %>%
+  count(trigram, sort = TRUE)
 
-raw_text = "The Time Traveller (for so it will be convenient to speak of him)..."
-
-# 1. Tokenize
-tokens = nltk.word_tokenize(raw_text)
-
-# 2. Filter for alphabetic words only (removing punctuation)
-clean_words = [t for t in tokens if t.isalpha()]
-
-print(clean_words[:10])
+head(hg_wells_trigrams, 10)
 ```
 
 
 ### Part C: Advanced Expansion Challenge
 
-R Challenge: Count words appearing more than 50 times in The Time Machine.
+**Task:** Remove trigrams that contain stop words.
 
+**R Solution:**
 ```{r}
 #| eval: false
-hg_wells %>%
-  count(word, sort = TRUE) %>%
-  filter(n > 50)
-```
+library(tidyr)
+data("stop_words")
 
-Python Challenge: Tokenize by Sentence instead of word.
-
-```{python}
-#| eval: false
-text_block = "The Time Traveller sat back. He smiled. It was done."
-sentences = nltk.sent_tokenize(text_block)
-print(sentences) 
-# Output: ['The Time Traveller sat back.', 'He smiled.', 'It was done.']
+hg_wells_trigrams %>%
+  separate(trigram, c("w1", "w2", "w3"), sep = " ") %>%
+  filter(!w1 %in% stop_words$word,
+         !w2 %in% stop_words$word,
+         !w3 %in% stop_words$word) %>%
+  unite(trigram, w1, w2, w3, sep = " ") %>%
+  count(trigram, sort = TRUE)
 ```
 
 ## Module 2: Preprocessing
@@ -92,8 +84,7 @@ print(sentences)
 Q1. Concept Check: What is the primary difference between Stemming and Lemmatization?
 
 Answer: > * Stemming is a heuristic process that chops off the ends of words (e.g., "ponies" -> "poni"). It is fast but crude.
-
-Lemmatization uses a dictionary and morphological analysis to find the actual root form (e.g., "ponies" -> "pony").
+> * Lemmatization uses a dictionary and morphological analysis to find the actual root form (e.g., "ponies" -> "pony").
 
 Q2. Concept Check: In the TF-IDF formula, what is the purpose of the IDF (Inverse Document Frequency) component?
 
@@ -101,15 +92,15 @@ Answer: To penalize words that appear in every document. If a word like "the" ap
 
 Q3. R Knowledge: Which function converts a tidy data frame into a sparse matrix?
 
-A) cast_sparse()
+A) cast_sparse() or cast_dtm()
 
 B) as.matrix()
 
-Answer: A) cast_sparse(). This is crucial for connecting tidytext workflows to machine learning packages like topicmodels or glmnet.
+Answer: A) cast_dtm() (or cast_sparse). This is crucial for connecting tidytext workflows to machine learning packages like topicmodels.
 
 ### Part B: Advanced Practice
 
-R Challenge: Visualize the top 10 words in Jane Austen's Persuasion.
+**R Challenge:** Visualize the top 10 words in Jane Austen's Persuasion.
 
 ```{r}
 #| eval: false
@@ -125,35 +116,18 @@ tidy_books %>%
   labs(title = "Top Words in Persuasion")
 ```
 
-Python Challenge: Demonstrate Stemming using the Porter Stemmer.
-
-```{python}
-#| eval: false
-from nltk.stem import PorterStemmer
-stemmer = PorterStemmer()
-
-words = ["running", "runs", "ran", "runner"]
-stemmed = [stemmer.stem(w) for w in words]
-
-print(stemmed)
-# Notice that "ran" typically stays "ran" in stemming, 
-# whereas a lemmatizer might map it to "run".
-```
-
 ## Module 3: Topic Modeling
 
 ### Part A: Concept Quiz
 
 Q1. True/False: LDA is a supervised learning algorithm.
 
-Answer: False. LDA is unsupervised. We do not tell it what the topics are in advance; the algorithm discovers the clusters based on word co-occurrence.
+Answer: False. LDA is unsupervised. We do not tell it what the topics are in advance.
 
 Q2. Parameter Check: What controls the number of topics the model finds?
 
 A) Alpha
-
 B) Beta
-
 C) k
 
 Answer: C) k. You must specify k (e.g., k=2 or k=5) when initializing the model.
@@ -173,16 +147,13 @@ lda_3 <- LDA(dtm, k = 3, control = list(seed = 1234))
 terms(lda_3, 5)
 ```
 Interpretation Example:
-
 Topic 1: "love, heart, dear" -> Label: Romance
-
 Topic 2: "money, pounds, estate" -> Label: Wealth
-
 Topic 3: "time, house, day" -> Label: Daily Life
 
 ### Part C: Advanced Expansion Challenge
 
-R Challenge: Inspect the Gamma (γ) matrix to see document probabilities.
+**R Challenge:** Inspect the Gamma (γ) matrix to see document probabilities.
 
 ```{r}
 #| eval: false
@@ -195,85 +166,30 @@ gamma_results %>%
   arrange(desc(gamma))
 ```
 
-
-Python Challenge: Train a Gensim model with 3 topics.
-
-```{python}
-#| eval: false
-lda_model_3 = models.LdaModel(
-    bow_corpus, 
-    num_topics=3, # Changed from 2 to 3
-    id2word=dictionary, 
-    passes=10
-)
-
-print(lda_model_3.print_topics())
-```
-
 ## Module 4: Applications & Inference
-
 
 ### Part A: Concept Quiz
 
-Q1. Score Range: The VADER compound sentiment score ranges from:
+Q1. Score Range: The `bing` lexicon classifies words into:
+A) Positive / Negative
+B) -5 to +5 
+C) Emotions (Joy, Anger, etc.)
 
-A) 0 to 100
+Answer: A) Positive / Negative. (B is AFINN, C is NRC).
 
-B) -1 to +1
+### Part B: Practical Challenge (Sentiment Analysis)
 
-Answer: B) -1 to +1, where -1 is most negative, 0 is neutral, and +1 is most positive.
+**Task:** Count positive/negative words in *Emma*.
 
-Q2. Methodology: TextBlob and VADER are examples of what type of sentiment analysis?
-
-A) Deep Learning
-
-B) Lexicon-based (Rule-based)
-
-Answer: B) Lexicon-based. They rely on pre-built dictionaries of words rated for sentiment, rather than training a neural network from scratch.
-
-### Part B: Practical Challenge (The "Bad" Review)
-
-Task: Analyze a negative sentence to see if VADER detects it.
-
-Python Solution:
-
-```{python}
-#| eval: false
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-
-sid = SentimentIntensityAnalyzer()
-text = "I absolutely hated this product. It was a complete waste of time and money."
-score = sid.polarity_scores(text)
-
-print(f"Compound Score: {score['compound']}")
-# Expected Result: A score close to -0.8 (Highly Negative)
-```
-
-
-### Part C: Advanced Expansion Challenge
-
-R Challenge: Use the "Bing" lexicon for binary sentiment counts.
+**R Solution:**
 
 ```{r}
 #| eval: false
-# Assumes hg_wells is loaded
-bing_counts <- hg_wells %>%
+emma_sentiment <- tidy_books %>%
+  filter(book == "Emma") %>%
   inner_join(get_sentiments("bing")) %>%
   count(sentiment)
 
-print(bing_counts)
-
-```
-
-Python Challenge: Compare VADER with TextBlob polarity.
-
-```{python}
-#| eval: false
-from textblob import TextBlob
-
-text = "The movie was not bad at all."
-blob = TextBlob(text)
-
-print(f"TextBlob Polarity: {blob.sentiment.polarity}")
-# TextBlob handles negation ("not bad") to produce a positive score (> 0).
+print(emma_sentiment)
+# Expected: Usually slightly more positive words than negative in Austen
 ```

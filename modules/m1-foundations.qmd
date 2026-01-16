@@ -7,6 +7,8 @@ title: "Module 1: Foundations & Tokenization"
 ### Core Concepts: The Lego Analogy
 
 Think of a document (a book, a tweet, a report) like a **completed Lego castle**.
+
+
 *   **Text Data Analysis** is the process of smashing that castle apart to see what bricks were used.
 *   **Tokenization** is the act of taking the wall apart brick-by-brick.
 *   **Tokens** are the individual bricks (words).
@@ -14,19 +16,21 @@ Think of a document (a book, a tweet, a report) like a **completed Lego castle**
 
 We analyze the *frequency* and *co-occurrence* of these bricks to infer what kind of structure gave rise to them. (e.g., "This pile has lots of grey 1x2 bricks, it must have been a castle fortress.")
 
-### Two Philosophies: Tidy vs. Object-Oriented
+### Two Philosophies: Tidy vs. Matrix
 
-There are two major ways to organize these bricks in code.
+There are two major ways to organize these bricks in code within the R ecosystem.
 
-| Feature | **Tidy Text (R)** | **Object-Oriented (Python)** |
+| Feature | **Tidy Text (tidytext)** | **Document-Term Matrix (tm/topicmodels)** |
 | :--- | :--- | :--- |
-| **Data Structure** | A long table (Data Frame). One row per token. | A complex Object (`doc`) containing lists of tokens, tags, and entities. |
-| **Mental Model** | "Spreadsheet" logic. We filter, group, and join. | "Pipeline" logic. Text flows through processors (Tagging -> Parsing). |
-| **Primary Libraries**| `tidytext`, `dplyr`, `ggplot2` | `spaCy`, `NLTK`, `gensim` |
-| **Best For...** | Exploratory Data Analysis (EDA), Visualization, Statistics. | production pipelines, Building Apps, Deep Learning. |
+| **Data Structure** | A long table (Data Frame). One row per token. | A sparse matrix. Rows are documents, columns are words. |
+| **Mental Model** | "Spreadsheet" logic. We filter, group, and join. | Mathematical logic. Linear algebra operations. |
+| **Primary Libraries**| `tidytext`, `dplyr`, `ggplot2` | `tm`, `topicmodels`, `quanteda` |
+| **Best For...** | Exploratory Data Analysis (EDA), Visualization. | Statistical modeling (LDA, TF-IDF scaling). |
 
 ### The Details: Text Normalization
+
 One crucial step in tokenization is decision-making about **Normalization**.
+
 *   **Case Sensitivity**: Should "Apple" (the company) and "apple" (the fruit) be counted as the same token?
     *   *Standard approach*: Lowercase everything to group "The" and "the".
     *   *Risk*: You lose the distinction between proper nouns (US) and pronouns (us).
@@ -41,69 +45,85 @@ One crucial step in tokenization is decision-making about **Normalization**.
 In this exercise, we will take "messy" book data and convert it into a tidy format.
 
 **Key Functions:**
+
 *   `unnest_tokens(tbl, output, input)`: Splitting a column of text (`input`) into tokens (`output`), flattening the table so there is one token per row.
 
 ```{r}
 #| label: r-tokenization
+#| message: false
 library(janeaustenr) # Provides the corpus
-library(tidytext)    # Provides unnest_tokens()
-library(dplyr)       # Data manipulation
+library(tidytext) # Provides unnest_tokens()
+library(dplyr) # Data manipulation
+```
 
+```{r}
 # 1. Load data
 # austen_books() returns a tibble with a 'text' column (lines of the books)
-original_books <- austen_books() 
+original_books <- austen_books()
 
 # 2. Convert to tidy format: one-token-per-row
 tidy_books <- original_books %>%
-  # Grouping allows us to track line numbers relative to each book
-  group_by(book) %>%
-  mutate(linenumber = row_number()) %>%
-  ungroup() %>%
-  # The Magic Step: Tokenize the 'text' column into a new 'word' column
-  # This defaults to converting to lowercase and stripping punctuation
-  unnest_tokens(word, text)
+    # Grouping allows us to track line numbers relative to each book
+    group_by(book) %>%
+    mutate(linenumber = row_number()) %>%
+    ungroup() %>%
+    # The Magic Step: Tokenize the 'text' column into a new 'word' column
+    # This defaults to converting to lowercase and stripping punctuation
+    unnest_tokens(word, text)
 
 # 3. Inspect the structure
 # Notice how the number of rows has exploded? That's characteristic of tidy text.
 head(tidy_books)
 
 # 4. Save for use in other modules
+# RMD projects do not have this problem
 saveRDS(tidy_books, here::here("data", "tidy_books.rds"))
+# We use saveRDS to preserve R-specific data types and structure, and
+# here::here() to ensure file paths are relative to the project root.
 ```
 
-### Python Exercise 1.2: Tokenization & N-grams
+### R Exercise 1.2: N-grams and Context
 
-Python's `NLTK` (Natural Language Toolkit) is a standard library for teaching NLP. It provides explicit control over how text is split.
+While single words (unigrams) are useful, sometimes we need more context. "New York" means something different than "New" and "York" separately. We can capture this with **N-grams**.
 
-**Concepts:**
-*   `word_tokenize`: Uses trained models to split punctuation from words (e.g., "don't" -> "do", "n't").
-*   `ngrams`: Creating sequences of N contiguous items (e.g., "New York City" is a trigram).
+**Key Arguments:**
 
-```{python}
-#| label: python-tokenization
-import nltk
-from nltk.util import ngrams
+*   `token = "ngrams"`: Tells `unnest_tokens` to create n-grams instead of words.
+*   `n = 2`: Specifies the size of the n-gram (2 for bigrams, 3 for trigrams).
 
-# Ensure you have the necessary NLTK data (run once)
-# nltk.download('punkt') 
+```{r}
+#| label: r-ngrams
+# 1. Generate Bigrams
+austen_bigrams <- original_books %>%
+    unnest_tokens(bigram, text, token = "ngrams", n = 2)
 
-# Sample text data
-text = "Text Data Analysis is essential for insights. It's fun too!"
+# 2. Inspect the most common bigrams
+# Notice many are "stop words" like "of the", "to be"
+austen_bigrams %>%
+    count(bigram, sort = TRUE) %>%
+    head(10)
 
-# 1. Basic Tokenization
-# splits text into specific word/punctuation tokens
-tokens = nltk.word_tokenize(text)
-print(f"Tokens: {tokens}")
+# 3. Filtering Bigrams
+# We can use separate() to look at the individual words in a bigram
+library(tidyr)
 
-# 2. Generating Bigrams (n=2)
-# useful for preserving context (e.g. "not happy")
-bigrams = list(ngrams(tokens, 2))
-print(f"Bigrams: {bigrams}")
+bigrams_separated <- austen_bigrams %>%
+    separate(bigram, c("word1", "word2"), sep = " ")
 
-# 3. List Comprehensions for filtering
-# Pythonic way to filter list items. Here we keep only length > 2
-long_words = [w for w in tokens if len(w) > 2]
-print(f"Long words: {long_words}")
+# Filter out cases where either word is a stop word
+data("stop_words")
+
+bigrams_filtered <- bigrams_separated %>%
+    filter(!word1 %in% stop_words$word) %>%
+    filter(!word2 %in% stop_words$word)
+
+# 4. View the most interesting bigrams
+bigrams_united <- bigrams_filtered %>%
+    unite(bigram, word1, word2, sep = " ")
+
+bigrams_united %>%
+    count(bigram, sort = TRUE) %>%
+    head(10)
 ```
 
 ---
@@ -112,7 +132,7 @@ print(f"Long words: {long_words}")
 
 *   **Unstructured -> Structured**: The first step of any analysis is converting raw text strings into a format the computer can count and measure.
 *   **Granularity**: We usually start at the *word* level (unigrams), but can move to *n-grams* to capture phrase-level meaning.
-*   **Tool Choice**: R is excellent for *exploratory* analysis (tabular view), while Python shines in *processing pipelines*.
+*   **Tidy Principles**: Keeping data in a long format (one token per row) allows us to use the entire `tidyverse` toolkit for analysis.
 
 ---
 
@@ -120,7 +140,8 @@ print(f"Long words: {long_words}")
 
 **Objective:** Apply tokenization techniques to a new text.
 
-1.  **R Task:** Use `gutenbergr` to download H.G. Wells' *The Time Machine* (Gutenberg ID **35**). Convert the text into a tidy format using `unnest_tokens`.
-2.  **Python Task:** Copy the raw text of the first paragraph. Use `NLTK` to tokenize the text and filter out any tokens that are punctuation (keep only alphabetic words - hint: look up `.isalpha()`).
+1.  **Corpus Creation:** Use `gutenbergr` to download H.G. Wells' *The Time Machine* (Gutenberg ID **35**). Convert the text into a tidy format using `unnest_tokens`.
+2.  **Filter Question:** Find the top 10 most common **trigrams** (3-word sequences) in the book.
+3.  **Advanced:** Try to remove trigrams that contain stop words.
 
 *Check your work against the Solution Key.*

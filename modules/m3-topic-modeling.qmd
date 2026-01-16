@@ -10,11 +10,13 @@ LDA is an unsupervised machine learning algorithm that discovers hidden "topics"
 
 **The Intuition: Food vs. Pets**
 Imagine you have 3 documents:
+
 1.  "The cat ate the tuna."
 2.  "The dog chased the cat."
 3.  "The tuna was cooked."
 
 And 2 hidden topics: **A (Pets)** and **B (Food)**.
+
 *   The word "cat" would have a high probability in Topic A (Pets).
 *   The word "tuna" would have a high probability in Topic B (Food).
 *   Document 1 ("cat ate tuna") is a **mixture**: 50% Topic A + 50% Topic B.
@@ -22,10 +24,12 @@ And 2 hidden topics: **A (Pets)** and **B (Food)**.
 LDA reverse-engineers this. It asks: *"Given these words, what mix of topics best explains them?"*
 
 **The Hyperparameters (The Knobs):**
+
 *   **Alpha ($\alpha$):** Are documents focused on just 1 topic (Low Alpha) or do they cover many topics (High Alpha)?
 *   **Beta/Eta ($\eta$):** Are topics made of just a few specific words (Low Beta) or many broad words (High Beta)?
 
 **The Math (Simplified):**
+
 *   $\beta$ (Beta): The probability of a word given a topic.
 *   $\gamma$ (Gamma): The probability of a topic given a document.
 
@@ -53,10 +57,10 @@ library(janeaustenr)
 # We need a Document-Term Matrix (DTM) for the topicmodels package
 data("stop_words")
 dtm <- austen_books() %>%
-  unnest_tokens(word, text) %>%
-  anti_join(stop_words, by = "word") %>%
-  count(book, word) %>%
-  cast_dtm(book, word, n)
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words, by = "word") %>%
+    count(book, word) %>%
+    cast_dtm(book, word, n)
 
 # 2. Run LDA
 # k=2: We ask the model to find 2 distinct topics
@@ -70,76 +74,65 @@ topics <- tidy(lda_model, matrix = "beta")
 # 4. Visualize Top Terms per Topic
 # This answers: "What words define Topic 1 vs Topic 2?"
 top_terms <- topics %>%
-  group_by(topic) %>%
-  slice_max(beta, n = 10) %>% 
-  ungroup() %>%
-  arrange(topic, -beta)
+    group_by(topic) %>%
+    slice_max(beta, n = 10) %>%
+    ungroup() %>%
+    arrange(topic, -beta)
 
 top_terms %>%
-  mutate(term = reorder_within(term, beta, topic)) %>%
-  ggplot(aes(beta, term, fill = factor(topic))) +
-  geom_col(show.legend = FALSE) +
-  facet_wrap(~ topic, scales = "free") +
-  scale_y_reordered() +
-  labs(title = "Top Words per Topic", x = "Beta (Probability)")
+    mutate(term = reorder_within(term, beta, topic)) %>%
+    ggplot(aes(beta, term, fill = factor(topic))) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(title = "Top Words per Topic", x = "Beta (Probability)")
 ```
 
-### Python Exercise 3.2: LDA with `Gensim`
+### R Exercise 3.2: From Raw Strings to LDA
 
-Gensim is the industrial standard for topic modeling in Python.
+Sometimes you don't start with a book corpus but with a simple list of strings (e.g., survey responses, tweets). Here is how you go from a simple vector to a topic model in R.
 
-**Key Steps:**
-1.  **Dictionary**: A mapping of Word -> Integer ID.
-2.  **Corpus**: The document collection converted to a Bag-of-Words (List of (ID, Count) tuples).
-3.  **LdaModel**: The training class.
-
-```{python}
-#| label: python-lda
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from gensim import corpora, models
-
-# 1. Sample Data
-documents = [
+```{r}
+#| label: r-raw-lda
+# 1. Sample Data (Vector of strings)
+raw_documents <- c(
     "Machine learning uses statistics to find patterns in data.",
     "Natural language processing analyzes text data structure.",
     "Deep learning requires vast amounts of data and gpu power.",
     "Politics and elections are dominated by voting and polls.",
     "The senate voted on the new bill yesterday."
-]
-
-# 2. Preprocessing Pipeline
-stop_words = set(stopwords.words('english'))
-
-def process(text):
-    tokens = word_tokenize(text.lower())
-    # Keep only alphabetic words, remove stopwords
-    return [t for t in tokens if t.isalpha() and t not in stop_words]
-
-processed_data = [process(d) for d in documents]
-
-# 3. Create Dictionary & Corpus
-# Dictionary: Maps 'data' -> 0, 'learning' -> 1...
-dictionary = corpora.Dictionary(processed_data)
-
-# BoW Corpus: Doc 1 -> [(0, 1), (1, 1)...]
-bow_corpus = [dictionary.doc2bow(text) for text in processed_data]
-
-# 4. Train LDA Model
-lda_model = models.LdaModel(
-    bow_corpus, 
-    num_topics=2,    # Asking for 2 topics (Tech vs Politics)
-    id2word=dictionary, 
-    passes=15,       # Number of passes through the corpus
-    random_state=42
 )
 
+# 2. Create a Tibble
+# We need a dataframe structure to use Tidytext
+text_df <- tibble(
+    doc_id = 1:5,
+    text = raw_documents
+)
+
+# 3. Process to DTM
+# Pipeline: Tokenize -> Remove Stopwords -> Count -> Cast DTM
+dtm_small <- text_df %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words, by = "word") %>%
+    count(doc_id, word) %>%
+    cast_dtm(doc_id, word, n)
+
+# 4. Train LDA Model
+# We ask for k=2 topics (expecting "Tech" vs "Politics")
+lda_small <- LDA(dtm_small, k = 2, control = list(seed = 42))
+
 # 5. Interpret Topics
-# print_topics shows the most significant words for each topic
-print("--- Discovered Topics ---")
-for idx, topic in lda_model.print_topics(-1):
-    print(f"Topic {idx}: {topic}")
+# We look at the top beta probabilities
+tidy(lda_small, matrix = "beta") %>%
+    group_by(topic) %>%
+    slice_max(beta, n = 5) %>%
+    arrange(topic, -beta) %>%
+    ggplot(aes(beta, reorder_within(term, beta, topic), fill = factor(topic))) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~topic, scales = "free") +
+    scale_y_reordered() +
+    labs(title = "Discovered Topics (Small Example)", y = NULL)
 ```
 
 ---
